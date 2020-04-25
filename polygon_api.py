@@ -10,17 +10,31 @@ import pandas as pd
 import holidays
 from mp_util import MP_Util
 
+
 class PP_API():
+    """
+    Access to Polygon's Restful API.
+
+    You must have your own API key
+
+    Built mostly using pandas. Most method will return pd.DataFrame or pd.MultiIndex
+    """
     def __init__(self, api_key):
         self.API_KEY = api_key
-        self.mp_util = MP_Util
+        self.mp_util = MP_Util  # multiprocessing for certain queries
         self.mp_util.API_KEY = api_key
-        self.us_holidays = holidays.UnitedStates()
+        self.us_holidays = holidays.UnitedStates() # remove holidays
 
     def _multilevel_df(self, content):
         """
         Creates multi level data frame for snap_shot/gainers/losers
-        :param content:
+
+        Takes request content and converts it into a MultiIndex pandas dataframe
+
+        requests content > list of dict w/ nested dicts > pandas dataframe with nested dicts >
+        pandas dataframe with nested dicts unpacked into MultiIndex on columns.
+
+        :param content: https response from request.get
         :return:
         """
         data = content.json()['tickers']
@@ -33,17 +47,21 @@ class PP_API():
 
     def _keep_trading_days(self, dates):
         """
-        removes holidays and weekends from datelist
+        removes holidays and weekends from date list
+        :param dates: (list)
+        :return: (list)
         """
         dates = [date for date in dates
                  if date not in self.us_holidays and   # remove holidays
-                 date.isoweekday()in range(1, 6)]  # remove weekends
+                 date.isoweekday() in range(1, 6)]  # remove weekends
         return dates
 
     @property
     def snap_shot_all(self):
         """
-        Gets all symbols current minute agg, daily agg, last_trade,
+        Gets all symbols current minute agg, daily agg, last_trade
+
+        Warning: the query can be quite large
 
         :return: pd.MultiIndex, index=ticker
         """
@@ -54,7 +72,7 @@ class PP_API():
     @property
     def get_types(self):
         """
-        Gets the types of symbols avaliable
+        Gets the types of symbols available
         :return:
         """
         end_point = f"https://api.polygon.io/v2/reference/types?apiKey={self.API_KEY}"
@@ -89,7 +107,7 @@ class PP_API():
     @property
     def get_markets(self):
         """
-        Gets the markets avaliable
+        Gets the markets available
         :return:
         """
         end_point = f"https://api.polygon.io/v2/reference/markets?apiKey={self.API_KEY}"
@@ -101,7 +119,7 @@ class PP_API():
     @property
     def get_locales(self):
         """
-        Gets the locales avaliable
+        Gets the locales available
         :return:
         """
         end_point = f"https://api.polygon.io/v2/reference/locales?apiKey={self.API_KEY}"
@@ -112,6 +130,11 @@ class PP_API():
 
     @property
     def is_market_open(self):
+        """
+        Is the market open ?
+
+        :return: open / closed
+        """
         end_point = f"https://api.polygon.io/v1/marketstatus/now?apiKey={self.API_KEY}"
         content = requests.get(end_point)
         data = content.json()
@@ -119,6 +142,11 @@ class PP_API():
 
     @property
     def holidays(self):
+        """
+        Returns the  upcoming holidays
+
+        :return:  pd.DataFrame
+        """
         end_point = f"https://api.polygon.io/v1/marketstatus/upcoming?apiKey={self.API_KEY}"
         content = requests.get(end_point)
         data = content.json()
@@ -126,6 +154,11 @@ class PP_API():
 
     @property
     def exchanges(self):
+        """
+        Retrieves the existing active exchanges
+
+        :return: pd.DataFrame
+        """
         end_point = f"https://api.polygon.io/v1/meta/exchanges?apiKey={self.API_KEY}"
         content = requests.get(end_point)
         data = content.json()
@@ -134,6 +167,7 @@ class PP_API():
     def snap_shot_single(self, ticker):
         """
         Snap shot of current symbol
+
         :param ticker: ticker
         :return: pd.DataFrame.MultiIndex
         """
@@ -145,14 +179,17 @@ class PP_API():
     def get_symbols(self, type="all", market="all",
                     search=None, locale='us', limit=None, active=True):
         """
-        Gets tickers and general information on them
+        Gets tickers and general information on them. This may return ~80k symbols
 
-        :param type: str - type of stock
-        :param market: str -  market type
-        :param search: str - conditional word search
-        :param locale: str - us/g ( US exchanges, global exchanges)
-        :param limit: str - response limit
-        :param active: bool - active stocks or inactive stocks
+        inputs > builds  end_point url > query in a while loop until desired limit is met
+        or breaks when it is not receiving and more data
+
+        :param type: (str) - type of stock
+        :param market: (str) -  market type
+        :param search: (str) - conditional word search
+        :param locale: (str) - us/g ( US exchanges, global exchanges)
+        :param limit: (str) - response limit
+        :param active: (bool) - active stocks or inactive stocks
         :return: pd.DataFrame
         """
         def unpack_codes(codes):
@@ -208,9 +245,10 @@ class PP_API():
 
     def get_ticker_details(self, ticker: str):
         """
-        Gets more details on different companies
+        Gets more details on different companies, such as: website url, descriptions, related companies,
+        industry, etc
 
-        :param ticker: str - ticker symbol
+        :param ticker: (str) - ticker symbol
         :return: pd.DataFrame
         """
         end_point = f"https://api.polygon.io/v1/meta/symbols/{ticker.upper()}/company?apiKey={self.API_KEY}"
@@ -228,8 +266,8 @@ class PP_API():
         """
         Gets the news  for given symbol
 
-        :param ticker:
-        :param limit: article limit
+        :param ticker: (str) - ticker sybol
+        :param limit: (int) - article limit
         :return: pd.DataFrame
         """
         end_point = f"https://api.polygon.io/v1/meta/symbols/{ticker.upper()}/news?apiKey={self.API_KEY}?perpage=50"
@@ -253,7 +291,8 @@ class PP_API():
     def get_split_dates(self, ticker: str):
         """
         Gets the split dates for different symbols
-        :param ticker:  symbols
+
+        :param ticker: (str) - ticker symbol
         :return: pd.DataFrame
         """
         end_point = f"https://api.polygon.io/v2/reference/splits/{ticker}?apiKey={self.API_KEY}"
@@ -264,7 +303,8 @@ class PP_API():
     def get_dividends(self, ticker: str):
         """
         Gets the dividends for different symbols
-        :param ticker:  symbols
+
+        :param ticker: (str) - symbols
         :return: pd.DataFrame
         """
         end_point = f"https://api.polygon.io/v2/reference/dividends/{ticker}?apiKey={self.API_KEY}"
@@ -274,8 +314,9 @@ class PP_API():
 
     def get_financials(self, ticker: str):
         """
-        Gets the financials for different symbols
-        :param ticker:  symbols
+        Gets the financial's for different symbols
+
+        :param ticker: (str) - symbols
         :return: pd.DataFrame
         """
         end_point = f"https://api.polygon.io/v2/reference/financials/{ticker}?apiKey={self.API_KEY}"
@@ -287,9 +328,14 @@ class PP_API():
         """
         Get historic trade data
 
-        :param ticker:  symbols
-        :param dates:  list of dates
-        :return:
+        removes weekends and holidays from dates input > multiprocess queries >
+        concatenates days together > return pd.DataFrame
+
+        uses all but 1 core
+
+        :param ticker: (str) - symbols
+        :param dates:  (list) - list of dates // Must be datetime.datetime
+        :return: pd.DataFrame
         """
         dates = self._keep_trading_days(dates)
         if len(dates) == 0:
@@ -303,8 +349,13 @@ class PP_API():
         """
         Historic NBBO quotes
 
-        :param ticker:
-        :param dates:
+        removes weekends and holidays from dates input > multiprocess queries >
+        concatenates days together > return pd.DataFrame
+
+        uses all but 1 core
+
+        :param ticker: (str) - symbols
+        :param dates:  (list) - list of dates // Must be datetime.datetime
         :return: pd.DataFrame
         """
         dates = [date for date in dates
@@ -321,8 +372,8 @@ class PP_API():
         """
         Gets the last confirmed trade
 
-        :param ticker: str
-        :return: dict
+        :param ticker: (str) - ticker symbol
+        :return: (dict)
         """
         end_point = f"https://api.polygon.io/v1/last/stocks/{ticker}?apiKey={self.API_KEY}"
         content = requests.get(end_point)
@@ -331,10 +382,10 @@ class PP_API():
 
     def get_last_quote(self, ticker):
         """
-        Gets the last quote
+        Gets the last NBBO quote
 
-        :param ticker: str
-        :return: dict
+        :param ticker: (str)
+        :return: (dict)
         """
         end_point = f"https://api.polygon.io/v1/last_quote/stocks/{ticker}?apiKey={self.API_KEY}"
         content = requests.get(end_point)
@@ -343,11 +394,11 @@ class PP_API():
 
     def get_daily_open_close(self, ticker, date=datetime.now()):
         """
-        Gets open and close of a given date
+        Gets open and close of a given date (daily aggregation)
 
-        :param ticker: str
-        :param date: datetime
-        :return: dict
+        :param ticker: (str) - ticker symbol
+        :param date: (datetime.datetime) - date
+        :return: (dict)
         """
         end_point = f"https://api.polygon.io/v1/open-close/{ticker}/" \
                     f"{date.strftime('%Y-%m-%d')}?apiKey={self.API_KEY}"
@@ -359,8 +410,9 @@ class PP_API():
     def get_previous_close(self, ticker, unadjusted=False):
         """
         Gets the previous days close for given ticker
-        :param ticker: str
-        :param unadjusted: bool
+
+        :param ticker: (str) - ticker symbol
+        :param unadjusted: (bool) - True if you DO NOT want to adjust for splits
         :return: pd.DataFrame
         """
         end_point = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev" \
@@ -372,7 +424,9 @@ class PP_API():
 
     def get_full_market_daily_agg(self, date, locale="US", market="STOCKS", unadjusted=False):
         """
-        Gets daily bars of the whole market for given dfate
+        Gets daily bars of the whole market for given date
+
+        access endpoint > convert json to pandas frame > rename columns
 
         :param date: (datetime) : date for desired market data
         :param locale: (str) : locale for aggregates. see self.get_locales
@@ -406,11 +460,16 @@ class PP_API():
         C:<<forex>>
         X:<<crypto>>
 
-        :param ticker: str
-        :param start_date: datetime
-        :param end_date: datetime
-        :param agg_period: int
-        :param unadjusted:  bool
+        gets all dates between given dates > remove holidays and weekends >
+        multiprocess queries for each day > concatenates date > returns pd.DataFrame
+
+        uses all but 1 core
+
+        :param ticker: (str) - ticker symbol
+        :param start_date: (datetime.datetime) - starting date
+        :param end_date: (datetime.datetime) - ending date
+        :param agg_period: (int) - aggregation period in minutes
+        :param unadjusted:  (bool) - True if you DO NOT want it to be adjusted
         :return: pd.DataFrame
         """
         date_range = pd.date_range(start_date, end_date, freq='d')
@@ -428,11 +487,15 @@ class PP_API():
         """
         Gets intraday  for multiple symbols
 
-        :param tickers: (list) : ticker symbls
-        :param start_date:  (datetime) : start date for data
-        :param end_date: (datetime) : end date for data
-        :param agg_period: (int) : time interval in minutes
-        :param unadjusted: (bool) : True if you DO NOT want the data adjusted for splits
+        iterates over symbols > gets intraday data using self.get_intraday_bar_agg >
+        create MultiIndex dataframes > concatenates the MultiIndexData > forward fill's if fillna=True >
+        returns MultiIndex column dataframe
+
+        :param tickers: (list) - ticker symbols
+        :param start_date:  (datetime.datetime) - start date for data
+        :param end_date: (datetime.datetime) - end date for data
+        :param agg_period: (int) - time interval in minutes
+        :param unadjusted: (bool) - True if you DO NOT want the data adjusted for splits
         :param fillna: (bool): pad fill, odds are df are not the same to the second
         :return: pd.DataFrame.MultiIndex
         """

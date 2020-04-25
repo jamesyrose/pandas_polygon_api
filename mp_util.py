@@ -12,10 +12,14 @@ class MP_Util:
         """
         Gets historic trade for given ticker and date
 
-        :param date: datetime
-        :param ticker:  str
-        :param rate_limit: int (max 50,000)
-        :return:
+        queries {rate_limit} from Polygon Restful api > gets last timestampe >
+        queries again with timestamps offset > repeats until no new data is being added >
+        concatenates all data > return pd.DataFrame
+
+        :param date: (datetime.datetime) - date being queried
+        :param ticker:  (str) - ticker symbol
+        :param rate_limit: (int) - points per query (max 50,000)
+        :return: pd.DataFrame
         """
         time_offset = 0
         date_str = date.strftime("%Y-%m-%d")
@@ -51,10 +55,14 @@ class MP_Util:
         """
         Gets historic NBBO quotes for given ticker and date
 
-        :param date: datetime
-        :param ticker:  str
-        :param rate_limit: int (max 50,000)
-        :return:
+        queries {rate_limit} from Polygon Restful api > gets last timestampe >
+        queries again with timestamps offset > repeats until no new data is being added >
+        concatenates all data > return pd.DataFrame
+
+        :param date: (datetime.datetime) - date being queried
+        :param ticker:  (str) - ticker symbol
+        :param rate_limit: (int) - points per query (max 50,000)
+        :return: pd.DataFrame
         """
         time_offset = 0
         date_str = date.strftime("%Y-%m-%d")
@@ -94,10 +102,10 @@ class MP_Util:
         """
         gets aggregate minutes for one day
 
-        :param date: datetime
-        :param ticker: str
-        :param agg_period: aggregation period in minutes
-        :param unadjusted: bool
+        :param date: (datetime.datetime) - date to get the data
+        :param ticker: (str) ticker symbol
+        :param agg_period: (int) -  aggregation period in minutes
+        :param unadjusted: (bool) - True if you DO NOT want to adjust for splits
         :return: pd.DataFrame
         """
         start = date
