@@ -130,3 +130,155 @@ class PP_API():
         content = requests.get(end_point)
         data = content.json()
         return pd.DataFrame(data).drop(columns=['id'])
+
+    def snap_shot_single(self, ticker):
+        """
+        Snap shot of current symbol
+        :param ticker: ticker
+        :return: pd.DataFrame.MultiIndex
+        """
+        end_point = f"https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/" \
+                    f"{ticker}?apiKey={self.API_KEY}"
+        content = reuqests.get(end_point)
+        return self._multilevel_df(content)
+
+    def get_symbols(self, type="all", market="all",
+                    search=None, locale='us', limit=None, active=True):
+        """
+        Gets tickers and general information on them
+
+        :param type: str - type of stock
+        :param market: str -  market type
+        :param search: str - conditional word search
+        :param locale: str - us/g ( US exchanges, global exchanges)
+        :param limit: str - response limit
+        :param active: bool - active stocks or inactive stocks
+        :return: pd.DataFrame
+        """
+        def unpack_codes(codes):
+            new_codes = {}
+            if isinstance(codes, dict):
+                for k, v in codes.items():
+                    new_codes[f"code_{k}"] = v
+                return pd.Series(new_codes)
+            else:
+                return pd.Series()
+        end_point = f"https://api.polygon.io/v2/reference/tickers"
+        if type.lower() in ["etp", 'cs', 'adr', 'nvdr', 'gdr', 'index', 'etn', 'etf']:
+            type_str = f"?type={type.lower()}"
+        else:
+            type_str = ""
+        if market.lower() in ['stocks', 'indicies', 'crypto', 'fx', 'bonds', 'mf', 'mmf']:
+            market_str = f"?market={market.lower()}"
+        else:
+            market_str = ""
+        if search is not None:
+            search_str = f"?search={search}"
+        else:
+            search_str = ""
+        if locale.lower() in ['us', 'g']:
+            local_str = f"?locale={locale}"
+        else:
+            local_str = ""
+        if active:
+            active_str = "true"
+        else:
+            active_str = 'false'
+        page_count = 1
+        working = True
+        data = pd.DataFrame()
+        while working:
+            url = f"{end_point}?apiKey={self.API_KEY}{type_str}{market_str}{search_str}{local_str}" \
+                  f"&perpage=50&page={page_count}&active={active_str}"
+            content = requests.get(url=url)
+            ticker_data = content.json()["tickers"]
+            if len(ticker_data) == 0:
+                working = False
+            df = pd.DataFrame(ticker_data)
+            df = df.merge(df.codes.apply(lambda c: unpack_codes(c)),
+                          left_index=True,
+                          right_index=True
+                          ).drop(columns="codes")
+            data = pd.concat([data, df], axis=0)
+            page_count += 1
+            if limit is not None:
+                if len(data) >= limit:
+                    working = False
+        return data
+
+    def get_ticker_details(self, ticker: str):
+        """
+        Gets more details on different companies
+
+        :param ticker: str - ticker symbol
+        :return: pd.DataFrame
+        """
+        end_point = f"https://api.polygon.io/v1/meta/symbols/{ticker.upper()}/company?apiKey={self.API_KEY}"
+        content = requests.get(end_point)
+        data = content.json()
+        if "error" in data.keys():
+            print(f"{data['error']}: {end_point}")
+            raise Exception
+        df = pd.DataFrame.from_dict(data, orient="index")
+        df = df.reset_index()
+        df.columns = ['detail', 'description']
+        return df
+
+    def get_ticker_news(self, ticker: str, limit=100):
+        """
+        Gets the news  for given symbol
+
+        :param ticker:
+        :param limit: article limit
+        :return: pd.DataFrame
+        """
+        end_point = f"https://api.polygon.io/v1/meta/symbols/{ticker.upper()}/news?apiKey={self.API_KEY}?perpage=50"
+        results = pd.DataFrame()
+        working = True
+        page_cnt = 1
+        while working:
+            url = f"{end_point}&page={page_cnt}"
+            content = requests.get(url=url)
+            data = content.json()
+            df = pd.DataFrame(data)
+            if len(df) < 1:
+                working = False
+            df['symbols'] = df.symbols.apply(lambda x: x[0])
+            results = pd.concat([results, df], axis=0)
+            if len(results) >= limit:
+                working = False
+
+        return results.sort_values(by=["timestamp"]).reset_index(drop=True)
+
+    def get_split_dates(self, ticker: str):
+        """
+        Gets the split dates for different symbols
+        :param ticker:  symbols
+        :return: pd.DataFrame
+        """
+        end_point = f"https://api.polygon.io/v2/reference/splits/{ticker}?apiKey={self.API_KEY}"
+        content = requests.get(end_point)
+        data = content.json()["results"]
+        return pd.DataFrame(data)
+
+    def get_dividends(self, ticker: str):
+        """
+        Gets the dividends for different symbols
+        :param ticker:  symbols
+        :return: pd.DataFrame
+        """
+        end_point = f"https://api.polygon.io/v2/reference/dividends/{ticker}?apiKey={self.API_KEY}"
+        content = requests.get(end_point)
+        data = content.json()["results"]
+        return pd.DataFrame(data)
+
+    def get_financials(self, ticker: str):
+        """
+        Gets the financials for different symbols
+        :param ticker:  symbols
+        :return: pd.DataFrame
+        """
+        end_point = f"https://api.polygon.io/v2/reference/financials/{ticker}?apiKey={self.API_KEY}"
+        content = requests.get(end_point)
+        data = content.json()["results"]
+        return pd.DataFrame(data)

@@ -23,7 +23,7 @@ class MP_Util:
         working = True
         while working:
             end_point = f"https://api.polygon.io/v2/ticks/stocks/trades/{ticker}/{date_str}" \
-                        f"?apiKey={cls.API_KEY}?timestamp={time_offset}&limit={rate_limit}"
+                        f"?apiKey={cls.API_KEY}&timestamp={time_offset}&limit={rate_limit}"
             content = requests.get(end_point)
             df = pd.DataFrame(content.json()["results"])
             df = df.rename(columns={"t": "SIP_Time",
