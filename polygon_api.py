@@ -316,3 +316,56 @@ class PP_API():
         pool = mp.Pool(mp.cpu_count() - 2)
         historic_quotes = pool.map(partial(self.mp_util.historic_quotes_mp, ticker=ticker), dates)
         return pd.concat(historic_quotes, axis=0).sort_values("SIP_Time")
+
+    def get_last_trade(self, ticker):
+        """
+        Gets the last confirmed trade
+
+        :param ticker: str
+        :return: dict
+        """
+        end_point = f"https://api.polygon.io/v1/last/stocks/{ticker}?apiKey={self.API_KEY}"
+        content = requests.get(end_point)
+        data = content.json()
+        return data["last"]
+
+    def get_last_quote(self, ticker):
+        """
+        Gets the last quote
+
+        :param ticker: str
+        :return: dict
+        """
+        end_point = f"https://api.polygon.io/v1/last_quote/stocks/{ticker}?apiKey={self.API_KEY}"
+        content = requests.get(end_point)
+        data = content.json()
+        return data["last"]
+
+    def get_daily_open_close(self, ticker, date=datetime.now()):
+        """
+        Gets open and close of a given date
+
+        :param ticker: str
+        :param date: datetime
+        :return: dict
+        """
+        end_point = f"https://api.polygon.io/v1/open-close/{ticker}/" \
+                    f"{date.strftime('%Y-%m-%d')}?apiKey={self.API_KEY}"
+        print(end_point)
+        content = requests.get(end_point)
+        data = content.json()
+        return data
+
+    def get_previous_close(self, ticker, unadjusted=False):
+        """
+        Gets the previous days close for given ticker
+        :param ticker: str
+        :param unadjusted: bool
+        :return: pd.DataFrame
+        """
+        end_point = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev" \
+                    f"?unadjusted={str(unadjusted).lower()}" \
+                    f"&apiKey={self.API_KEY}"
+        content = requests.get(end_point)
+        data = content.json()["results"]
+        return pd.DataFrame(data)
