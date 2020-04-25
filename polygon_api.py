@@ -282,3 +282,37 @@ class PP_API():
         content = requests.get(end_point)
         data = content.json()["results"]
         return pd.DataFrame(data)
+
+    def get_historic_trades(self, ticker, dates=[datetime.now()]):
+        """
+        Get historic trade data
+
+        :param ticker:  symbols
+        :param dates:  list of dates
+        :return:
+        """
+        dates = self._keep_trading_days(dates)
+        if len(dates) == 0:
+            print("No business days entered")
+            raise
+        pool = mp.Pool(mp.cpu_count() - 2)
+        historic_trades = pool.map(partial(self.mp_util.historic_trades_mp, ticker=ticker), dates)
+        return pd.concat(historic_trades, axis=0).sort_values("SIP_Time")
+
+    def get_historic_quotes(self, ticker, dates=[datetime.now()]):
+        """
+        Historic NBBO quotes
+
+        :param ticker:
+        :param dates:
+        :return: pd.DataFrame
+        """
+        dates = [date for date in dates
+                 if date not in self.us_holidays and   # remove holidays
+                 date.isoweekday() in range(1, 6)]  # remove weekends
+        if len(dates) == 0:
+            print("No business days entered")
+            raise
+        pool = mp.Pool(mp.cpu_count() - 2)
+        historic_quotes = pool.map(partial(self.mp_util.historic_quotes_mp, ticker=ticker), dates)
+        return pd.concat(historic_quotes, axis=0).sort_values("SIP_Time")
