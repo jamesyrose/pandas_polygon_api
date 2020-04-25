@@ -369,3 +369,85 @@ class PP_API():
         content = requests.get(end_point)
         data = content.json()["results"]
         return pd.DataFrame(data)
+
+    def get_full_market_daily_agg(self, date, locale="US", market="STOCKS", unadjusted=False):
+        """
+        Gets daily bars of the whole market for given dfate
+
+        :param date: (datetime) : date for desired market data
+        :param locale: (str) : locale for aggregates. see self.get_locales
+        :param market: (str) : market for aggregates. see self.get_markets
+        :param unadjusted:(bool) : True if you DO NOT want it to be adjusted  for splits
+        :return: pd.DataFrame
+        """
+        end_point = f"https://api.polygon.io/v2/aggs/grouped/" \
+                    f"locale/{locale.upper()}/" \
+                    f"market/{market.pper()}/" \
+                    f"{date.strftime('%Y-%m-%d')}" \
+                    f"?unadjusted{str(unadjusted).lower()}" \
+                    f"?apiKey={self.API_KEY}"
+        content = requests.get(end_point)
+        data = content.json()['results']
+        df = pd.DataFrame(data).rename(columns={"v": "volume",
+                                                "o": "open",
+                                                "c": "close",
+                                                "h": "high",
+                                                "l": "low",
+                                                't': "datetime",
+                                                'n': "agg_item_count"}
+                                       )
+        return df
+
+    def get_intraday_bar_agg(self, ticker, start_date, end_date, agg_period=1, unadjusted=False):
+        """
+        Gets the candles for intraday. default aggregation is 1 minute
+
+        For f/c use the following formats:
+        C:<<forex>>
+        X:<<crypto>>
+
+        :param ticker: str
+        :param start_date: datetime
+        :param end_date: datetime
+        :param agg_period: int
+        :param unadjusted:  bool
+        :return: pd.DataFrame
+        """
+        date_range = pd.date_range(start_date, end_date, freq='d')
+        date_range = self._keep_trading_days(date_range)
+        pool = mp.Pool(mp.cpu_count() - 2)
+        minute_data = pool.map(partial(self.mp_util.minute_agg_mp,
+                                       ticker=ticker,
+                                       unadjusted=unadjusted,
+                                       agg_period=agg_period),
+                               date_range
+                               )
+        return pd.concat(minute_data, axis=0)
+
+    def get_multiple_intraday(self, tickers, start_date, end_date, agg_period=1, unadjusted=True, fillna=False):
+        """
+        Gets intraday  for multiple symbols
+
+        :param tickers: (list) : ticker symbls
+        :param start_date:  (datetime) : start date for data
+        :param end_date: (datetime) : end date for data
+        :param agg_period: (int) : time interval in minutes
+        :param unadjusted: (bool) : True if you DO NOT want the data adjusted for splits
+        :param fillna: (bool): pad fill, odds are df are not the same to the second
+        :return: pd.DataFrame.MultiIndex
+        """
+        data = []
+        for ticker in tickers:
+            df = self.get_intraday_bar_agg(ticker=ticker,
+                                                     start_date=start_date,
+                                                     end_date=end_date,
+                                                     agg_period=agg_period,
+                                                     unadjusted=unadjusted
+                                                     ).set_index("datetime")
+            df.columns = pd.MultiIndex.from_product([[ticker], df.columns])
+            data += [df]
+        concat_data = pd.concat(data, axis=0).sort_index()
+        if fillna:
+            concat_data = concat_data.fillna(method="ffill")
+        return concat_data
+
