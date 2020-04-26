@@ -173,7 +173,7 @@ class PP_API():
         """
         end_point = f"https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/" \
                     f"{ticker}?apiKey={self.API_KEY}"
-        content = reuqests.get(end_point)
+        content = requests.get(end_point)
         return self._multilevel_df(content)
 
     def get_symbols(self, type="all", market="all",
@@ -436,7 +436,7 @@ class PP_API():
         """
         end_point = f"https://api.polygon.io/v2/aggs/grouped/" \
                     f"locale/{locale.upper()}/" \
-                    f"market/{market.pper()}/" \
+                    f"market/{market.upper()}/" \
                     f"{date.strftime('%Y-%m-%d')}" \
                     f"?unadjusted{str(unadjusted).lower()}" \
                     f"?apiKey={self.API_KEY}"
